@@ -9,7 +9,7 @@ object Par {
   type Par[A] = ExecutorService => Future[A]
 
   // 直ちに a 値が得られる計算を作成
-  def unit[A](a: A): Par[A] = ???
+  def unit[A](a: A): Par[A] = (es: ExecutorService) => UnitFuture(a)
 
   // 式 a を run による並列評価のためにマッピング
   def lazyUnit[A](a: => A): Par[A] = fork(unit(a))
@@ -22,13 +22,16 @@ object Par {
     override def call(): A = a(es).get
   })
 
-  //  def sum(ints: IndexedSeq[Int]): Par[Int] =
-  //    if (ints.size <= 1) {
-  //      Par.unit(ints.headOption.getOrElse(0))
-  //    } else {
-  //      val (l, r) = ints.splitAt(ints.length/2)
-  //      Par.map2(sum(l), sum(r))(_ + _)
-  //    }
+  def sortPar(parList: Par[List[Int]]): Par[List[Int]] =
+    map2(parList, unit(()))((a, _) => a.sorted)
+
+//  def sum(ints: IndexedSeq[Int]): Par[Int] =
+//    if (ints.size <= 1) {
+//      Par.unit(ints.headOption.getOrElse(0))
+//    } else {
+//      val (l, r) = ints.splitAt(ints.length / 2)
+//      Par.map2(sum(l), sum(r))(_ + _)
+//    }
 
   // 2つの並列計算の結果を2項関数で結合
   def map2[A, B, C](a: Par[A], b: Par[B])(f: (A, B) => C): Par[C] = es => {
@@ -36,6 +39,8 @@ object Par {
     val bf = b(es)
     UnitFuture(f(af.get, bf.get))
   }
+
+  def asyncF[A, B](f: A => B): A => Par[B] = a => lazyUnit(f(a))
 
   private case class UnitFuture[A](get: A) extends Future[A] {
     def isDone: Boolean = true
